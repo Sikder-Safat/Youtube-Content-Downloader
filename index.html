@@ -828,9 +828,24 @@
             </div>
           </li>
           <li>Log into <strong>youtube.com</strong>, then click the extension and hit <strong>Export</strong>.</li>
-          <li>Save as <strong>cookies.txt</strong> in the project folder (same level as <code style="color:#fcd34d;">server.py</code>).</li>
-          <li>Restart the server: <code style="color:#fcd34d;">python server.py</code></li>
+          <li>Paste the copied <strong>cookies.txt</strong> content below and click <strong>Save Cookie</strong>!</li>
         </ol>
+
+        <!-- 1-Click Cookie Paste Form -->
+        <div style="margin-top:16px; padding-top:14px; border-top:1px dashed rgba(245,158,11,0.25);">
+          <label style="display:block; font-size:12.5px; font-weight:700; color:#fcd34d; margin-bottom:6px;">
+            ⚡ Quick Cookie Update (Paste your cookies.txt text here):
+          </label>
+          <textarea id="cookiePasteInput" placeholder="Paste your cookies.txt text content here..."
+            style="width:100%; height:85px; background:rgba(0,0,0,0.4); border:1px solid rgba(245,158,11,0.3); border-radius:8px; color:#fff; padding:10px; font-family:monospace; font-size:11.5px; outline:none; resize:vertical;"></textarea>
+          <div style="display:flex; align-items:center; gap:10px; margin-top:8px;">
+            <button id="saveCookieBtn" onclick="saveCookiesDirectly()" class="btn btn-green" style="height:38px; padding:0 18px; font-size:13px;">
+              <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              Save Cookie
+            </button>
+            <span id="cookieSaveMsg" style="font-size:12.5px; font-weight:600;"></span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1143,6 +1158,49 @@
       setupBody.classList.toggle('open', isSetupOpen);
       setupToggleLabel.textContent = isSetupOpen ? 'Close ▴' : 'Instructions ▾';
     }
+
+    async function saveCookiesDirectly() {
+      const input = document.getElementById('cookiePasteInput');
+      const msg   = document.getElementById('cookieSaveMsg');
+      const btn   = document.getElementById('saveCookieBtn');
+      const text  = input ? input.value.trim() : '';
+
+      if (!text) {
+        msg.style.color = '#f87171';
+        msg.textContent = 'Please paste your cookies.txt text first.';
+        return;
+      }
+
+      btn.disabled = true;
+      msg.style.color = '#fcd34d';
+      msg.textContent = 'Saving cookie...';
+
+      try {
+        const res  = await fetch('/api/update-cookies', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cookies: text })
+        });
+        const data = await res.json();
+        if (data.success) {
+          msg.style.color = '#34d399';
+          msg.textContent = '✅ Cookie saved! You can now generate transcripts & download videos.';
+          setTimeout(() => {
+            setupBanner.classList.remove('show');
+            if (isSetupOpen) toggleSetupInstructions();
+          }, 1800);
+        } else {
+          msg.style.color = '#f87171';
+          msg.textContent = data.error || 'Failed to save cookie.';
+        }
+      } catch (e) {
+        msg.style.color = '#f87171';
+        msg.textContent = 'Error saving cookie to server.';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
 
     generateBtn.addEventListener('click', handleGenerate);
     urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') handleGenerate(); });

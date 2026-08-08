@@ -353,7 +353,32 @@ def index():
 @app.route("/api/status", methods=["GET"])
 def status():
     """Let the frontend know whether cookies.txt is present."""
-    return jsonify({"cookiesReady": os.path.isfile(COOKIES_FILE)})
+    has_cookies = False
+    if os.path.isfile(COOKIES_FILE):
+        try:
+            has_cookies = os.path.getsize(COOKIES_FILE) > 50
+        except:
+            has_cookies = False
+    return jsonify({"cookiesReady": has_cookies})
+
+
+@app.route("/api/update-cookies", methods=["POST"])
+def update_cookies():
+    """Update cookies.txt directly from web interface."""
+    data = request.get_json(silent=True) or {}
+    cookie_content = data.get("cookies", "").strip()
+
+    if not cookie_content:
+        return jsonify({"error": "No cookie content provided."}), 400
+
+    try:
+        with open(COOKIES_FILE, "w", encoding="utf-8") as f:
+            f.write(cookie_content)
+        print("[OK] Cookies updated directly via Web UI")
+        return jsonify({"success": True, "message": "Cookies saved successfully! You can now generate transcripts and download videos."})
+    except Exception as e:
+        return jsonify({"error": f"Failed to save cookies: {str(e)}"}), 500
+
 
 
 @app.route("/api/transcript", methods=["GET"])
