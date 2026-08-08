@@ -1118,10 +1118,8 @@
     const copyBtn         = document.getElementById('copyBtn');
     const copyBtnLabel    = document.getElementById('copyBtnLabel');
     const setupBanner     = document.getElementById('setupBanner');
-    const setupBody       = document.getElementById('setupBody');
-    const setupToggleLabel= document.getElementById('setupToggleLabel');
 
-    // Check cookie status on load
+    // Check cookie status on load - hide banner if cookies are ready
     (async function checkServerStatus() {
       try {
         const res  = await fetch('/api/status');
@@ -1129,55 +1127,6 @@
         if (!data.cookiesReady) setupBanner.classList.add('show');
       } catch {}
     })();
-
-    function toggleSetupInstructions() {
-      isSetupOpen = !isSetupOpen;
-      setupBody.classList.toggle('open', isSetupOpen);
-      setupToggleLabel.textContent = isSetupOpen ? 'Close ▴' : 'Instructions ▾';
-    }
-
-    async function saveCookiesDirectly() {
-      const input = document.getElementById('cookiePasteInput');
-      const msg   = document.getElementById('cookieSaveMsg');
-      const btn   = document.getElementById('saveCookieBtn');
-      const text  = input ? input.value.trim() : '';
-
-      if (!text) {
-        msg.style.color = '#f87171';
-        msg.textContent = 'Please paste your cookies.txt text first.';
-        return;
-      }
-
-      btn.disabled = true;
-      msg.style.color = '#fcd34d';
-      msg.textContent = 'Saving cookie...';
-
-      try {
-        const res  = await fetch('/api/update-cookies', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cookies: text })
-        });
-        const data = await res.json();
-        if (data.success) {
-          msg.style.color = '#34d399';
-          msg.textContent = '✅ Cookie saved! You can now generate transcripts & download videos.';
-          setTimeout(() => {
-            setupBanner.classList.remove('show');
-            if (isSetupOpen) toggleSetupInstructions();
-          }, 1800);
-        } else {
-          msg.style.color = '#f87171';
-          msg.textContent = data.error || 'Failed to save cookie.';
-        }
-      } catch (e) {
-        msg.style.color = '#f87171';
-        msg.textContent = 'Error saving cookie to server.';
-      } finally {
-        btn.disabled = false;
-      }
-    }
-
 
     generateBtn.addEventListener('click', handleGenerate);
     urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') handleGenerate(); });
@@ -1196,8 +1145,7 @@
         if (!res.ok || data.error) {
           if (data.error === 'NEEDS_COOKIES') {
             setupBanner.classList.add('show');
-            if (!isSetupOpen) toggleSetupInstructions();
-            throw new Error('YouTube requires cookies.txt. See the setup notice above.');
+            throw new Error('YouTube authentication is being updated. Please try again in a few minutes.');
           }
           throw new Error(data.error || 'Failed to retrieve transcript.');
         }

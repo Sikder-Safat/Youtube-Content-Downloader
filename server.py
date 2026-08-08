@@ -244,47 +244,31 @@ def get_video_info_for_download(url: str) -> dict:
         if h and f.get("vcodec", "none") not in ("none", None):
             all_heights.add(h)
 
-    if FFMPEG_PATH:
-        # High-quality merged formats - requires ffmpeg
-        quality_opts = [
-            {
-                "label": "Best Quality (Auto)",
-                "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best",
-                "badge": "4K",
-            },
-        ]
-        for h in [2160, 1440, 1080, 720, 480, 360, 240]:
-            if any(height <= h for height in all_heights):
-                quality_opts.append({
-                    "label": f"{h}p {'(4K)' if h==2160 else '(2K)' if h==1440 else ''}".strip(),
-                    "format": (
-                        f"bestvideo[height<={h}][ext=mp4]+bestaudio[ext=m4a]"
-                        f"/bestvideo[height<={h}]+bestaudio"
-                        f"/best[height<={h}]"
-                    ),
-                    "badge": "HD" if h >= 1080 else None,
-                })
-    else:
-        # No ffmpeg - use pre-merged progressive streams only
-        progressive_heights = set()
-        for f in formats_raw:
-            has_video = f.get("vcodec", "none") not in ("none", None)
-            has_audio = f.get("acodec", "none") not in ("none", None)
-            h = f.get("height")
-            if has_video and has_audio and h:
-                progressive_heights.add(h)
-        if not progressive_heights:
-            progressive_heights = all_heights
-        quality_opts = [
-            {"label": "Best Quality (Auto)", "format": "best[ext=mp4]/best", "badge": "HD"},
-        ]
-        for h in [720, 480, 360, 240]:
-            if any(height <= h for height in progressive_heights):
-                quality_opts.append({
-                    "label": f"{h}p",
-                    "format": f"best[height<={h}][ext=mp4]/best[height<={h}]/best",
-                    "badge": None,
-                })
+    # On cloud servers (Render etc.) ffmpeg is typically unavailable for merging.
+    # Always use safe progressive/single-file formats that work without ffmpeg.
+    # Collect progressive streams (have both video + audio in one file)
+    progressive_heights = set()
+    for f in formats_raw:
+        has_video = f.get("vcodec", "none") not in ("none", None)
+        has_audio = f.get("acodec", "none") not in ("none", None)
+        h = f.get("height")
+        if has_video and has_audio and h:
+            progressive_heights.add(h)
+
+    # Fallback: use all heights if no progressive streams found
+    if not progressive_heights:
+        progressive_heights = all_heights if all_heights else {720, 480, 360}
+
+    quality_opts = [
+        {"label": "Best Quality (Auto)", "format": "best[ext=mp4]/best", "badge": "HD"},
+    ]
+    for h in [1080, 720, 480, 360, 240]:
+        if any(height <= h for height in progressive_heights):
+            quality_opts.append({
+                "label": f"{h}p {'HD' if h >= 720 else ''}".strip(),
+                "format": f"best[height<={h}][ext=mp4]/best[height<={h}]/best",
+                "badge": "HD" if h >= 720 else None,
+            })
 
     quality_opts.append({
         "label": "Audio Only",
