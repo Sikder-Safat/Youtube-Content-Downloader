@@ -1,0 +1,12 @@
+# YouTube authentication cookies (contains private session credentials)
+cookies.txt
+
+# Python cache & environments
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+venv/
+env/
+.idea/
+.vscode/

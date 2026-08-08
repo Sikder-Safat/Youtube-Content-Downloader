@@ -1,0 +1,1507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TranscriptAI – YouTube Transcript & Downloader</title>
+  <meta name="description" content="Generate transcripts and download videos from any YouTube URL. Fast, free, and simple." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300..900;1,14..32,300..900&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Reset ──────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── Design Tokens ──────────────────────────────────────────── */
+    :root {
+      --c-bg:         #090b10;
+      --c-surface:    #11131e;
+      --c-surface-2:  #171a28;
+      --c-surface-3:  #1e2235;
+      --c-border:     rgba(255, 255, 255, 0.08);
+      --c-border-md:  rgba(255, 255, 255, 0.15);
+
+      --c-text:       #f1f4fe;
+      --c-text-2:     #949ab8;
+      --c-text-3:     #5b6180;
+
+      --c-indigo:     #6366f1;
+      --c-violet:     #7c3aed;
+      --c-green:      #10b981;
+      --c-green-dk:   #059669;
+      --c-amber:      #f59e0b;
+      --c-red:        #ef4444;
+
+      --grad-indigo:  linear-gradient(135deg, #6366f1, #7c3aed);
+      --grad-green:   linear-gradient(135deg, #10b981, #059669);
+      --glow-indigo:  rgba(99, 102, 241, 0.25);
+      --glow-green:   rgba(16, 185, 129, 0.25);
+      --glow-red:     rgba(239, 68, 68, 0.18);
+
+      --r-sm: 8px;
+      --r-md: 12px;
+      --r-lg: 16px;
+      --r-xl: 24px;
+
+      --shadow-card: 0 12px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      --shadow-btn:  0 4px 16px rgba(0, 0, 0, 0.3);
+      --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* ── Base ───────────────────────────────────────────────────── */
+    html { scroll-behavior: smooth; font-size: 16px; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--c-bg);
+      color: var(--c-text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      line-height: 1.5;
+    }
+
+    /* Thin custom scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--c-surface-3); border-radius: 99px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--c-indigo); }
+
+    /* ── Ambient Background Glow ────────────────────────────────── */
+    .bg-glow {
+      position: fixed; inset: 0;
+      pointer-events: none; z-index: 0; overflow: hidden;
+    }
+    .bg-glow::before, .bg-glow::after {
+      content: '';
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(140px);
+      opacity: 0.14;
+      animation: drift 20s ease-in-out infinite alternate;
+    }
+    .bg-glow::before {
+      width: clamp(350px, 60vw, 750px);
+      height: clamp(350px, 60vw, 750px);
+      background: #6366f1;
+      top: -200px; left: -150px;
+    }
+    .bg-glow::after {
+      width: clamp(300px, 50vw, 600px);
+      height: clamp(300px, 50vw, 600px);
+      background: #7c3aed;
+      bottom: -150px; right: -100px;
+      animation-delay: -10s;
+    }
+    @keyframes drift {
+      from { transform: translate(0, 0) scale(1); }
+      to   { transform: translate(40px, 30px) scale(1.08); }
+    }
+
+    /* ── Page Layout ───────────────────────────────────────────── */
+    .page {
+      position: relative; z-index: 1;
+      display: flex; flex-direction: column; align-items: center;
+      min-height: 100vh;
+      width: 100%; max-width: 900px;
+      margin: 0 auto;
+      padding: clamp(24px, 5vw, 52px) clamp(14px, 4vw, 28px) 80px;
+      gap: clamp(18px, 3vw, 24px);
+    }
+
+    /* ── Site Header ────────────────────────────────────────────── */
+    .site-header {
+      width: 100%;
+      text-align: center;
+      padding-bottom: clamp(12px, 2vw, 20px);
+    }
+    .logo-row {
+      display: inline-flex; align-items: center; gap: 9px;
+      padding: 6px 14px 6px 10px;
+      background: rgba(99, 102, 241, 0.08);
+      border: 1px solid rgba(99, 102, 241, 0.22);
+      border-radius: 99px;
+      margin-bottom: 18px;
+      transition: border-color .2s;
+    }
+    .logo-row:hover { border-color: rgba(99, 102, 241, 0.4); }
+    .logo-icon {
+      width: 26px; height: 26px;
+      background: var(--grad-indigo);
+      border-radius: 7px;
+      display: grid; place-items: center;
+      box-shadow: 0 2px 8px var(--glow-indigo);
+    }
+    .logo-icon svg { width: 14px; height: 14px; fill: #fff; }
+    .logo-name {
+      font-size: 13px; font-weight: 700; color: #a5b4fc; letter-spacing: 0.02em;
+    }
+    .site-title {
+      font-size: clamp(1.85rem, 5vw, 3.1rem);
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+      margin-bottom: 12px;
+      background: linear-gradient(160deg, #ffffff 30%, #c7d2fe 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .site-sub {
+      font-size: clamp(0.9rem, 2.2vw, 1.05rem);
+      color: var(--c-text-2);
+      max-width: 520px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    /* ── Card Component ─────────────────────────────────────────── */
+    .card {
+      width: 100%;
+      background: linear-gradient(180deg, rgba(17, 19, 30, 0.96) 0%, rgba(13, 15, 24, 0.96) 100%);
+      border: 1px solid var(--c-border);
+      border-radius: var(--r-xl);
+      padding: clamp(18px, 4vw, 32px);
+      box-shadow: var(--shadow-card);
+      backdrop-filter: blur(12px);
+      transition: border-color .25s ease;
+    }
+    .card:hover { border-color: rgba(255, 255, 255, 0.11); }
+
+    /* ── Section Label ──────────────────────────────────────────── */
+    .section-label {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 14px;
+    }
+    .section-label span {
+      font-size: 11.5px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--c-text-2);
+    }
+    .badge-new {
+      padding: 2px 8px;
+      background: var(--grad-green);
+      border-radius: 99px;
+      font-size: 9.5px; font-weight: 700;
+      color: #fff; letter-spacing: 0.06em; text-transform: uppercase;
+      box-shadow: 0 2px 8px var(--glow-green);
+    }
+
+    /* ── URL Input Row ──────────────────────────────────────────── */
+    .input-row {
+      display: flex; gap: 10px; align-items: center;
+      width: 100%;
+    }
+    .input-wrap {
+      position: relative; flex: 1; min-width: 0;
+    }
+    .input-icon {
+      position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+      color: var(--c-text-3); pointer-events: none;
+      display: flex; align-items: center; transition: color .2s;
+    }
+    .input-icon svg {
+      width: 18px; height: 18px;
+      stroke: currentColor; fill: none; stroke-width: 2;
+      stroke-linecap: round; stroke-linejoin: round;
+    }
+    .input-wrap:focus-within .input-icon { color: var(--c-indigo); }
+    .url-input {
+      width: 100%; height: 50px;
+      background: var(--c-surface-2);
+      border: 1.5px solid var(--c-border);
+      border-radius: var(--r-md);
+      color: var(--c-text);
+      font-family: inherit; font-size: 14.5px;
+      padding: 0 16px 0 46px;
+      transition: border-color .2s, box-shadow .2s, background .2s;
+      outline: none;
+    }
+    .url-input::placeholder { color: var(--c-text-3); }
+    .url-input:focus {
+      border-color: var(--c-indigo);
+      box-shadow: 0 0 0 3.5px var(--glow-indigo);
+      background: var(--c-surface-3);
+    }
+    .url-input.err {
+      border-color: var(--c-red);
+      box-shadow: 0 0 0 3.5px var(--glow-red);
+    }
+
+    /* ── Buttons System ─────────────────────────────────────────── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      border: none; border-radius: var(--r-md);
+      font-family: inherit; font-weight: 600;
+      cursor: pointer; white-space: nowrap;
+      user-select: none;
+      transition: all .2s var(--ease-out);
+    }
+    .btn svg {
+      flex-shrink: 0;
+      width: 16px; height: 16px;
+      fill: none; stroke: currentColor; stroke-width: 2;
+      stroke-linecap: round; stroke-linejoin: round;
+    }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+    .btn:active:not(:disabled) { transform: scale(0.98); }
+
+    /* Primary (indigo) */
+    .btn-primary {
+      height: 50px; padding: 0 24px; font-size: 14.5px;
+      background: var(--grad-indigo);
+      color: #fff;
+      box-shadow: 0 3px 14px var(--glow-indigo);
+    }
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 22px rgba(99, 102, 241, 0.42);
+    }
+
+    /* Green */
+    .btn-green {
+      height: 50px; padding: 0 24px; font-size: 14.5px;
+      background: var(--grad-green);
+      color: #fff;
+      box-shadow: 0 3px 14px var(--glow-green);
+    }
+    .btn-green:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 22px rgba(16, 185, 129, 0.42);
+    }
+    .btn-green.full { width: 100%; height: 52px; font-size: 15px; font-weight: 700; }
+
+    /* Ghost */
+    .btn-ghost {
+      height: 40px; padding: 0 16px; font-size: 13px; font-weight: 500;
+      background: var(--c-surface-2);
+      border: 1px solid var(--c-border);
+      color: var(--c-text-2);
+    }
+    .btn-ghost:hover:not(:disabled) {
+      background: var(--c-surface-3);
+      border-color: var(--c-border-md);
+      color: var(--c-text);
+    }
+
+    /* Copy button */
+    .btn-copy {
+      height: 40px; padding: 0 18px; font-size: 13px;
+      background: var(--grad-indigo); color: #fff;
+      box-shadow: 0 2px 10px var(--glow-indigo);
+    }
+    .btn-copy:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 5px 18px rgba(99, 102, 241, 0.4);
+    }
+    .btn-copy.copied {
+      background: var(--grad-green);
+      box-shadow: 0 2px 10px var(--glow-green);
+    }
+
+    /* ── Alert Boxes ────────────────────────────────────────────── */
+    .alert {
+      display: none;
+      align-items: flex-start; gap: 10px;
+      padding: 14px 18px; border-radius: var(--r-md);
+      font-size: 13.5px; line-height: 1.5;
+      margin-top: 14px;
+      animation: fadeUp .25s ease;
+    }
+    .alert.show { display: flex; }
+    .alert svg {
+      flex-shrink: 0; margin-top: 1px;
+      width: 18px; height: 18px;
+      fill: none; stroke: currentColor; stroke-width: 2;
+      stroke-linecap: round; stroke-linejoin: round;
+    }
+    .alert-error {
+      background: rgba(239, 68, 68, 0.09);
+      border: 1px solid rgba(239, 68, 68, 0.25);
+      color: #f87171;
+    }
+    .alert-success {
+      background: rgba(16, 185, 129, 0.09);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      color: #34d399;
+    }
+    .alert-success .dl-success-inner { display: flex; flex-direction: column; gap: 2px; }
+    .alert-success strong { color: #10b981; font-weight: 700; }
+    .alert-success span { color: var(--c-text-2); font-size: 13px; }
+
+    /* ── Spinner / Loading ──────────────────────────────────────── */
+    .loading-wrap {
+      display: none;
+      flex-direction: column; align-items: center;
+      padding: 36px 0; gap: 14px;
+    }
+    .loading-wrap.show { display: flex; }
+    .spin {
+      width: 38px; height: 38px;
+      border-radius: 50%;
+      border: 3px solid rgba(99, 102, 241, 0.18);
+      border-top-color: var(--c-indigo);
+      animation: spin .8s linear infinite;
+    }
+    .spin-green {
+      border-color: rgba(16, 185, 129, 0.18);
+      border-top-color: var(--c-green);
+    }
+    .loading-label { font-size: 14px; color: var(--c-text-2); font-weight: 500; }
+    .loading-sub { font-size: 12.5px; color: var(--c-text-3); text-align: center; margin-top: -6px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Divider ────────────────────────────────────────────────── */
+    .divider {
+      display: none;
+      height: 1px; background: var(--c-border);
+      margin: 22px 0;
+    }
+    .divider.show { display: block; }
+
+    /* ── Transcript Section ─────────────────────────────────────── */
+    .transcript-section { display: none; animation: fadeUp .3s ease; }
+    .transcript-section.show { display: block; }
+
+    .ts-toolbar {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 12px;
+      margin-bottom: 14px;
+    }
+    .ts-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
+    .ts-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+    .ts-heading { font-size: 11.5px; font-weight: 700; color: var(--c-text-2); text-transform: uppercase; letter-spacing: .08em; }
+    .ts-video-title {
+      font-size: 13px; font-weight: 500; color: var(--c-text-2);
+      max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    .chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 10px; border-radius: 99px;
+      font-size: 11.5px; font-weight: 600;
+    }
+    .chip-indigo {
+      background: rgba(99, 102, 241, 0.1);
+      border: 1px solid rgba(99, 102, 241, 0.22);
+      color: #a5b4fc;
+    }
+    .chip-amber {
+      background: rgba(245, 158, 11, 0.08);
+      border: 1px solid rgba(245, 158, 11, 0.22);
+      color: #fde68a;
+    }
+    .chip-green {
+      background: rgba(16, 185, 129, 0.08);
+      border: 1px solid rgba(16, 185, 129, 0.22);
+      color: #6ee7b7;
+    }
+
+    /* Mode toggle */
+    .mode-toggle {
+      display: flex;
+      background: var(--c-surface-2);
+      border: 1px solid var(--c-border);
+      border-radius: var(--r-sm);
+      padding: 3px; gap: 3px;
+    }
+    .mode-btn {
+      padding: 4px 12px;
+      border: none; border-radius: 6px;
+      background: transparent;
+      color: var(--c-text-2); font-family: inherit;
+      font-size: 12px; font-weight: 600;
+      cursor: pointer; transition: all .15s;
+    }
+    .mode-btn.active {
+      background: var(--c-surface-3);
+      color: var(--c-text);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Search */
+    .ts-search-row { position: relative; margin-bottom: 12px; }
+    .ts-search-icon {
+      position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+      color: var(--c-text-3); pointer-events: none; display: flex;
+    }
+    .ts-search-icon svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; }
+    #searchInput {
+      width: 100%; height: 42px;
+      background: var(--c-surface-2);
+      border: 1px solid var(--c-border);
+      border-radius: var(--r-sm);
+      color: var(--c-text); font-family: inherit; font-size: 13.5px;
+      padding: 0 14px 0 38px; outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    #searchInput:focus { border-color: var(--c-indigo); box-shadow: 0 0 0 3px var(--glow-indigo); }
+    #searchInput::placeholder { color: var(--c-text-3); }
+
+    /* Transcript text area - clean scroll */
+    .ts-box {
+      border: 1.5px solid var(--c-border);
+      border-radius: var(--r-md);
+      background: var(--c-surface-2);
+      transition: border-color .2s;
+    }
+    .ts-box:focus-within { border-color: rgba(99, 102, 241, 0.45); }
+    #transcriptOutput {
+      width: 100%; height: clamp(260px, 45vh, 420px);
+      padding: clamp(14px, 3vw, 22px);
+      color: var(--c-text);
+      font-family: inherit; font-size: 14.5px;
+      line-height: 1.8; white-space: pre-wrap;
+      overflow-y: auto; outline: none;
+      scrollbar-width: none; -ms-overflow-style: none;
+    }
+    #transcriptOutput::-webkit-scrollbar { display: none; width: 0; }
+
+    /* Transcript footer */
+    .ts-footer {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 12px;
+      margin-top: 16px;
+    }
+    .ts-stats { font-size: 13px; color: var(--c-text-2); font-weight: 500; }
+    .ts-stats strong { color: var(--c-text); }
+    .ts-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* ── Setup Banner ───────────────────────────────────────────── */
+    .setup-banner {
+      width: 100%;
+      background: rgba(245, 158, 11, 0.05);
+      border: 1px solid rgba(245, 158, 11, 0.22);
+      border-radius: var(--r-lg); overflow: hidden;
+      display: none;
+    }
+    .setup-banner.show { display: block; animation: fadeUp .3s ease; }
+    .setup-banner-hd {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 18px; cursor: pointer; user-select: none; gap: 10px;
+    }
+    .setup-banner-title {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13.5px; font-weight: 600; color: #fcd34d;
+    }
+    .setup-banner-title svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; flex-shrink: 0; }
+    .setup-toggle { font-size: 12px; color: var(--c-text-2); white-space: nowrap; }
+    .setup-body {
+      padding: 0 18px 18px; display: none;
+      border-top: 1px solid rgba(245, 158, 11, 0.12);
+    }
+    .setup-body.open { display: block; padding-top: 16px; }
+    .setup-body p { font-size: 13px; color: #e5a93c; line-height: 1.6; margin-bottom: 14px; }
+    .setup-steps { list-style: none; counter-reset: s; display: flex; flex-direction: column; gap: 10px; }
+    .setup-steps li {
+      counter-increment: s; display: flex; gap: 10px;
+      align-items: flex-start; font-size: 13px; color: #d4a017; line-height: 1.5;
+    }
+    .setup-steps li::before {
+      content: counter(s);
+      flex-shrink: 0; width: 20px; height: 20px;
+      background: rgba(245, 158, 11, .15); border: 1px solid rgba(245, 158, 11, .35);
+      border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700; color: #fcd34d;
+    }
+    .ext-links { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    .ext-link {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 5px 12px;
+      background: rgba(245, 158, 11, .1); border: 1px solid rgba(245, 158, 11, .25);
+      border-radius: 6px; font-size: 12px; font-weight: 600;
+      color: #fcd34d; text-decoration: none; transition: background .15s;
+    }
+    .ext-link:hover { background: rgba(245, 158, 11, .2); }
+
+    /* ── Video Preview & Download Card ─────────────────────────── */
+    .vid-preview {
+      display: none;
+      margin-top: 18px;
+      animation: fadeUp .3s ease;
+    }
+    .vid-preview.show { display: block; }
+    .vid-meta-row {
+      display: flex; gap: 14px; align-items: flex-start;
+      padding: 14px;
+      background: var(--c-surface-2);
+      border: 1px solid var(--c-border);
+      border-radius: var(--r-md);
+      margin-bottom: 18px;
+    }
+    .vid-thumb {
+      flex-shrink: 0; width: 130px; aspect-ratio: 16 / 9;
+      border-radius: 8px; overflow: hidden;
+      background: var(--c-surface-3);
+    }
+    .vid-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .vid-info { flex: 1; min-width: 0; }
+    .vid-title {
+      font-size: 14px; font-weight: 700; color: var(--c-text);
+      line-height: 1.35; margin-bottom: 6px;
+      overflow: hidden; display: -webkit-box;
+      -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    }
+    .vid-sub {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      font-size: 12px; color: var(--c-text-2);
+    }
+    .vid-sub-item { display: flex; align-items: center; gap: 4px; }
+    .vid-sub-item svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+    /* Quality buttons */
+    .quality-label {
+      font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .09em;
+      color: var(--c-text-2); margin-bottom: 10px;
+    }
+    .quality-grid {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      margin-bottom: 16px;
+    }
+    .q-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 15px;
+      background: var(--c-surface-2);
+      border: 1.5px solid var(--c-border);
+      border-radius: var(--r-sm);
+      color: var(--c-text-2);
+      font-family: inherit; font-size: 12.5px; font-weight: 600;
+      cursor: pointer; transition: all .18s;
+    }
+    .q-btn:hover { border-color: var(--c-indigo); color: var(--c-text); }
+    .q-btn.sel {
+      background: rgba(99, 102, 241, 0.12);
+      border-color: var(--c-indigo);
+      color: var(--c-text);
+      box-shadow: 0 0 0 3px var(--glow-indigo);
+    }
+    .q-tag {
+      padding: 1px 6px; border-radius: 99px;
+      background: var(--grad-indigo);
+      font-size: 9px; font-weight: 700; color: #fff;
+    }
+
+    /* Video embed preview */
+    .preview-toggle-row {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-top: 10px;
+    }
+    .btn-preview {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 7px 16px;
+      background: rgba(99, 102, 241, 0.1);
+      border: 1.5px solid rgba(99, 102, 241, 0.25);
+      border-radius: var(--r-sm);
+      color: #a5b4fc;
+      font-family: inherit; font-size: 12.5px; font-weight: 600;
+      cursor: pointer; transition: all .2s;
+    }
+    .btn-preview:hover { background: rgba(99, 102, 241, 0.18); border-color: rgba(99, 102, 241, 0.45); color: #c4b5fd; }
+    .btn-preview svg { width: 14px; height: 14px; fill: currentColor; }
+    .btn-preview.active {
+      background: rgba(239, 68, 68, 0.1);
+      border-color: rgba(239, 68, 68, 0.3);
+      color: #f87171;
+    }
+    .btn-preview.active:hover { background: rgba(239, 68, 68, 0.18); }
+
+    .embed-panel {
+      display: none;
+      margin-top: 14px;
+      border-radius: var(--r-md);
+      overflow: hidden;
+      border: 1px solid var(--c-border);
+      background: #000;
+      animation: fadeUp .25s ease;
+    }
+    .embed-panel.show { display: block; }
+    .embed-ratio {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+    }
+    .embed-ratio iframe {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      border: none;
+    }
+
+    /* ── Thumbnail Result Card ───────────────────────────────────── */
+    .thumb-result {
+      display: none;
+      margin-top: 18px;
+      background: var(--c-surface-2);
+      border: 1px solid var(--c-border);
+      border-radius: var(--r-md);
+      overflow: hidden;
+      animation: fadeUp .3s ease;
+    }
+    .thumb-result.show { display: block; }
+    .thumb-result img {
+      width: 100%; display: block;
+      max-height: 440px; object-fit: contain;
+      background: #000;
+    }
+    .thumb-result-footer {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 18px; gap: 12px; flex-wrap: wrap;
+    }
+    .thumb-result-info { display: flex; flex-direction: column; gap: 2px; }
+    .thumb-result-label { font-size: 13.5px; font-weight: 700; color: var(--c-text); }
+    .thumb-result-dims  { font-size: 12px; color: var(--c-text-3); }
+    .btn-thumb-dl {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 9px 24px;
+      background: var(--grad-indigo);
+      border: none; border-radius: var(--r-sm);
+      color: #fff; font-family: inherit;
+      font-size: 13px; font-weight: 700;
+      cursor: pointer; transition: opacity .15s, transform .15s, box-shadow .15s;
+      text-decoration: none; white-space: nowrap;
+      box-shadow: 0 3px 12px var(--glow-indigo);
+    }
+    .btn-thumb-dl:hover { opacity: .92; transform: translateY(-1px); box-shadow: 0 6px 18px rgba(99, 102, 241, 0.4); }
+    .btn-thumb-dl svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+
+    /* ── How It Works Grid ──────────────────────────────────────── */
+    .how-grid {
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+    .how-card {
+      background: linear-gradient(180deg, rgba(17, 19, 30, 0.8) 0%, rgba(13, 15, 24, 0.8) 100%);
+      border: 1px solid var(--c-border);
+      border-radius: var(--r-lg);
+      padding: 20px 18px;
+      transition: border-color .2s, transform .2s;
+    }
+    .how-card:hover { border-color: rgba(99, 102, 241, 0.35); transform: translateY(-2px); }
+    .how-num {
+      width: 30px; height: 30px;
+      background: var(--grad-indigo);
+      border-radius: 9px;
+      display: grid; place-items: center;
+      font-size: 12.5px; font-weight: 800; color: #fff;
+      margin-bottom: 12px;
+      box-shadow: 0 3px 10px var(--glow-indigo);
+    }
+    .how-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 5px; }
+    .how-card p { font-size: 12.5px; color: var(--c-text-2); line-height: 1.55; }
+
+    /* ── Footer ─────────────────────────────────────────────────── */
+    .site-footer {
+      font-size: 12px; color: var(--c-text-3);
+      text-align: center; padding-top: 8px;
+    }
+
+    /* ── Animations ─────────────────────────────────────────────── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Fully Professional Responsive System ───────────────────── */
+
+    /* Tablet (<= 768px) */
+    @media (max-width: 768px) {
+      .how-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; }
+      .how-card { padding: 16px 14px; }
+    }
+
+    /* Medium Tablet / Mobile (<= 640px) */
+    @media (max-width: 640px) {
+      .input-row { flex-direction: column; align-items: stretch; gap: 10px; }
+      .input-row .btn { width: 100%; height: 48px; }
+
+      .ts-toolbar { flex-direction: column; align-items: flex-start; gap: 10px; }
+      .ts-left { width: 100%; justify-content: space-between; }
+      .ts-right { width: 100%; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+      .ts-video-title { max-width: 100%; }
+
+      .ts-footer { flex-direction: column; align-items: stretch; gap: 12px; }
+      .ts-stats { text-align: center; }
+      .ts-actions { width: 100%; flex-direction: column; }
+      .ts-actions .btn { width: 100%; height: 44px; justify-content: center; }
+
+      .vid-meta-row { flex-direction: column; }
+      .vid-thumb { width: 100%; height: auto; aspect-ratio: 16 / 9; }
+      .btn-preview { width: 100%; justify-content: center; margin-top: 6px; }
+
+      .how-grid { grid-template-columns: 1fr; gap: 12px; }
+
+      .thumb-result-footer { flex-direction: column; align-items: stretch; text-align: center; }
+      .btn-thumb-dl { width: 100%; justify-content: center; height: 44px; }
+    }
+
+    /* Small Mobile (<= 400px) */
+    @media (max-width: 400px) {
+      .page { padding-left: 12px; padding-right: 12px; }
+      .card { padding: 16px; border-radius: var(--r-lg); }
+      .mode-toggle { width: 100%; justify-content: center; }
+      .mode-btn { flex: 1; text-align: center; }
+      .q-btn { width: 100%; justify-content: space-between; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="bg-glow" aria-hidden="true"></div>
+
+  <div class="page">
+
+    <!-- Header -->
+    <header class="site-header">
+      <div class="logo-row">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+        </div>
+        <span class="logo-name">TranscriptAI</span>
+      </div>
+      <h1 class="site-title">YouTube Transcript &amp; Downloader</h1>
+      <p class="site-sub">Paste any YouTube link to get a full transcript or download the video - instantly.</p>
+    </header>
+
+    <!-- Setup banner (shown only if cookies missing) -->
+    <div id="setupBanner" class="setup-banner" aria-label="Setup required">
+      <div class="setup-banner-hd" onclick="toggleSetupInstructions()" role="button" aria-expanded="false">
+        <div class="setup-banner-title">
+          <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <span>One-time setup required - cookies.txt needed for YouTube</span>
+        </div>
+        <span class="setup-toggle" id="setupToggleLabel">Instructions ▾</span>
+      </div>
+      <div class="setup-body" id="setupBody">
+        <p>YouTube blocks automated access. Export your browser cookies once using a free extension, place the file next to <code style="color:#fcd34d;background:rgba(255,255,255,.05);padding:1px 5px;border-radius:4px;">server.py</code>, then restart the server.</p>
+        <ol class="setup-steps">
+          <li>Install the <strong>Get cookies.txt LOCALLY</strong> extension:
+            <div class="ext-links">
+              <a class="ext-link" href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" target="_blank" rel="noopener">Chrome / Edge</a>
+              <a class="ext-link" href="https://addons.mozilla.org/en-US/firefox/addon/cookies-txt/" target="_blank" rel="noopener">Firefox</a>
+            </div>
+          </li>
+          <li>Log into <strong>youtube.com</strong>, then click the extension and hit <strong>Export</strong>.</li>
+          <li>Save as <strong>cookies.txt</strong> in the project folder (same level as <code style="color:#fcd34d;">server.py</code>).</li>
+          <li>Restart the server: <code style="color:#fcd34d;">python server.py</code></li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- ── Transcript Card ───────────────────────────────────────── -->
+    <div class="card">
+      <div class="section-label"><span>Generate Transcript</span></div>
+
+      <div class="input-row">
+        <div class="input-wrap">
+          <div class="input-icon">
+            <svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          </div>
+          <input class="url-input" type="url" id="urlInput"
+            placeholder="https://www.youtube.com/watch?v=..."
+            autocomplete="off" spellcheck="false"
+            aria-label="YouTube video URL for transcript" />
+        </div>
+        <button id="generateBtn" class="btn btn-primary" aria-label="Generate transcript">
+          <svg id="btnIcon" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <span id="btnText">Generate</span>
+        </button>
+      </div>
+
+      <!-- Error -->
+      <div id="errorBox" class="alert alert-error" role="alert" aria-live="polite">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span id="errorText"></span>
+      </div>
+
+      <!-- Loading -->
+      <div id="loadingContainer" class="loading-wrap" aria-live="polite">
+        <div class="spin"></div>
+        <span class="loading-label">Fetching transcript...</span>
+      </div>
+
+      <!-- Divider -->
+      <div class="divider" id="sectionDivider"></div>
+
+      <!-- Transcript result -->
+      <section id="transcriptArea" class="transcript-section" aria-label="Transcript output">
+
+        <div class="ts-toolbar">
+          <div class="ts-left">
+            <span class="ts-heading">Transcript</span>
+            <span class="ts-video-title" id="videoTitle"></span>
+          </div>
+          <div class="ts-right">
+            <span class="chip chip-indigo" id="langPill">EN</span>
+            <span class="chip chip-amber" id="typePill">Auto-generated</span>
+            <div class="mode-toggle" role="group" aria-label="View format">
+              <button class="mode-btn active" id="btnModePlain" onclick="switchViewMode('plain')">Plain</button>
+              <button class="mode-btn" id="btnModeTimestamped" onclick="switchViewMode('timestamped')">Timestamps</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Search -->
+        <div class="ts-search-row">
+          <div class="ts-search-icon">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </div>
+          <input type="text" id="searchInput" placeholder="Search within transcript..." oninput="handleSearch()" />
+        </div>
+
+        <!-- Text box -->
+        <div class="ts-box">
+          <div id="transcriptOutput" role="region" aria-label="Transcript text" tabindex="0"></div>
+        </div>
+
+        <!-- Footer -->
+        <div class="ts-footer">
+          <div class="ts-stats" id="wordCountLabel"><strong>0</strong> words</div>
+          <div class="ts-actions">
+            <button class="btn btn-ghost" onclick="downloadTxtFile()">
+              <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Download .txt
+            </button>
+            <button class="btn btn-ghost" onclick="resetForm()">
+              <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              Clear
+            </button>
+            <button id="copyBtn" class="btn btn-copy" onclick="copyTranscript()">
+              <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span id="copyBtnLabel">Copy</span>
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ── Download Card ─────────────────────────────────────────── -->
+    <div class="card">
+      <div class="section-label">
+        <span>Download Video</span>
+        <span class="badge-new">New</span>
+      </div>
+
+      <div class="input-row">
+        <div class="input-wrap">
+          <div class="input-icon">
+            <svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          </div>
+          <input class="url-input" type="url" id="dlUrlInput"
+            placeholder="https://www.youtube.com/watch?v=..."
+            autocomplete="off" spellcheck="false"
+            aria-label="YouTube URL to download" />
+        </div>
+        <button id="dlFetchBtn" class="btn btn-primary" aria-label="Fetch video info">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span id="dlFetchBtnText">Download</span>
+        </button>
+      </div>
+
+      <!-- Error -->
+      <div id="dlErrorBox" class="alert alert-error" role="alert" aria-live="polite">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span id="dlErrorText"></span>
+      </div>
+
+      <!-- Fetch loading -->
+      <div id="dlFetchLoading" class="loading-wrap" aria-live="polite">
+        <div class="spin"></div>
+        <span class="loading-label">Fetching video info...</span>
+      </div>
+
+      <!-- Video preview -->
+      <div id="dlVideoPreview" class="vid-preview">
+
+        <div class="vid-meta-row">
+          <div class="vid-thumb"><img id="dlThumb" src="" alt="Video thumbnail" /></div>
+          <div class="vid-info">
+            <div class="vid-title" id="dlTitle"></div>
+            <div class="vid-sub">
+              <span class="vid-sub-item">
+                <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <span id="dlChannel"></span>
+              </span>
+              <span class="vid-sub-item">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span id="dlDuration"></span>
+              </span>
+              <span class="vid-sub-item" id="dlViewsWrap" style="display:none">
+                <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                <span id="dlViews"></span>
+              </span>
+            </div>
+            <!-- Preview toggle button -->
+            <div class="preview-toggle-row">
+              <button id="dlPreviewBtn" class="btn-preview" onclick="toggleVideoPreview()" aria-expanded="false">
+                <svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <span id="dlPreviewBtnText">Preview Video</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Embedded YouTube player (lazy-loads on toggle) -->
+        <div id="dlEmbedPanel" class="embed-panel" role="region" aria-label="Video preview player">
+          <div class="embed-ratio">
+            <iframe
+              id="dlEmbedFrame"
+              src=""
+              title="YouTube video preview"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowfullscreen
+            ></iframe>
+          </div>
+        </div>
+
+        <div class="quality-label">Select Quality</div>
+        <div class="quality-grid" id="dlQualityGrid"></div>
+
+        <button id="dlStartBtn" class="btn btn-green full">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span id="dlStartBtnText">Download Video</span>
+        </button>
+
+        <!-- Download progress -->
+        <div id="dlLoadingState" class="loading-wrap" aria-live="polite">
+          <div class="spin spin-green"></div>
+          <span class="loading-label">Downloading, please wait...</span>
+          <span class="loading-sub">This may take 1–3 minutes for longer videos.</span>
+        </div>
+
+        <!-- Success -->
+        <div id="dlSuccessState" class="alert alert-success" aria-live="polite">
+          <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+          <div class="dl-success-inner">
+            <strong>Download Complete!</strong>
+            <span id="dlSuccessMsg">Your video has been saved.</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── Thumbnail Card ────────────────────────────────────── -->
+    <div class="card">
+      <div class="section-label">
+        <span>Get Thumbnail</span>
+      </div>
+
+      <div class="input-row">
+        <div class="input-wrap">
+          <div class="input-icon">
+            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          </div>
+          <input class="url-input" type="url" id="thumbUrlInput"
+            placeholder="https://www.youtube.com/watch?v=..."
+            autocomplete="off" spellcheck="false"
+            aria-label="YouTube URL to get thumbnail" />
+        </div>
+        <button id="thumbBtn" class="btn btn-primary" aria-label="Get thumbnail">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          <span id="thumbBtnText">Get Thumbnail</span>
+        </button>
+      </div>
+
+      <!-- Error -->
+      <div id="thumbErrorBox" class="alert alert-error" role="alert" aria-live="polite">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span id="thumbErrorText"></span>
+      </div>
+
+      <!-- Loading -->
+      <div id="thumbLoading" class="loading-wrap" aria-live="polite">
+        <div class="spin"></div>
+        <span class="loading-label">Fetching thumbnails...</span>
+      </div>
+
+      <!-- Thumbnail result -->
+      <div id="thumbResult" class="thumb-result">
+        <img id="thumbImg" src="" alt="YouTube thumbnail" />
+        <div class="thumb-result-footer">
+          <div class="thumb-result-info">
+            <span class="thumb-result-label" id="thumbQualityLabel"></span>
+            <span class="thumb-result-dims"  id="thumbDimsLabel"></span>
+          </div>
+          <a id="thumbDlBtn" class="btn-thumb-dl" href="" download="" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <div class="how-grid">
+      <div class="how-card">
+        <div class="how-num">1</div>
+        <h3>Paste Link</h3>
+        <p>Any YouTube URL - standard, short, Shorts, or embed.</p>
+      </div>
+      <div class="how-card">
+        <div class="how-num">2</div>
+        <h3>Generate or Fetch</h3>
+        <p>Get the full transcript in seconds or choose a video quality to download.</p>
+      </div>
+      <div class="how-card">
+        <div class="how-num">3</div>
+        <h3>Copy or Save</h3>
+        <p>Copy text, download as .txt, or save the video file directly.</p>
+      </div>
+    </div>
+
+    <footer class="site-footer">
+      <p>Works with public YouTube videos. Captions must be available for transcripts.</p>
+    </footer>
+
+  </div><!-- .page -->
+
+  <script>
+    /* ═══════════════════════════════════════════════════════════════
+       TRANSCRIPT SECTION
+    ═══════════════════════════════════════════════════════════════ */
+    let currentTranscriptData = null;
+    let currentViewMode       = 'plain';
+    let isSetupOpen           = false;
+
+    const urlInput        = document.getElementById('urlInput');
+    const generateBtn     = document.getElementById('generateBtn');
+    const btnText         = document.getElementById('btnText');
+    const errorBox        = document.getElementById('errorBox');
+    const errorText       = document.getElementById('errorText');
+    const loadingContainer= document.getElementById('loadingContainer');
+    const sectionDivider  = document.getElementById('sectionDivider');
+    const transcriptArea  = document.getElementById('transcriptArea');
+    const transcriptOutput= document.getElementById('transcriptOutput');
+    const searchInput     = document.getElementById('searchInput');
+    const wordCountLabel  = document.getElementById('wordCountLabel');
+    const videoTitleLabel = document.getElementById('videoTitle');
+    const langPill        = document.getElementById('langPill');
+    const typePill        = document.getElementById('typePill');
+    const copyBtn         = document.getElementById('copyBtn');
+    const copyBtnLabel    = document.getElementById('copyBtnLabel');
+    const setupBanner     = document.getElementById('setupBanner');
+    const setupBody       = document.getElementById('setupBody');
+    const setupToggleLabel= document.getElementById('setupToggleLabel');
+
+    // Check cookie status on load
+    (async function checkServerStatus() {
+      try {
+        const res  = await fetch('/api/status');
+        const data = await res.json();
+        if (!data.cookiesReady) setupBanner.classList.add('show');
+      } catch {}
+    })();
+
+    function toggleSetupInstructions() {
+      isSetupOpen = !isSetupOpen;
+      setupBody.classList.toggle('open', isSetupOpen);
+      setupToggleLabel.textContent = isSetupOpen ? 'Close ▴' : 'Instructions ▾';
+    }
+
+    generateBtn.addEventListener('click', handleGenerate);
+    urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') handleGenerate(); });
+    urlInput.addEventListener('input', () => { urlInput.classList.remove('err'); hideError(); });
+
+    async function handleGenerate() {
+      const url = urlInput.value.trim();
+      if (!url) { showError('Please paste a YouTube URL first.'); urlInput.classList.add('err'); urlInput.focus(); return; }
+
+      setLoading(true); hideError(); hideTranscript();
+
+      try {
+        const res  = await fetch(`/api/transcript?url=${encodeURIComponent(url)}`);
+        const data = await res.json();
+
+        if (!res.ok || data.error) {
+          if (data.error === 'NEEDS_COOKIES') {
+            setupBanner.classList.add('show');
+            if (!isSetupOpen) toggleSetupInstructions();
+            throw new Error('YouTube requires cookies.txt. See the setup notice above.');
+          }
+          throw new Error(data.error || 'Failed to retrieve transcript.');
+        }
+        currentTranscriptData = data;
+        renderTranscript(data);
+      } catch (err) {
+        showError(err.message || 'An error occurred. Please try again.');
+        urlInput.classList.add('err');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    function setLoading(on) {
+      generateBtn.disabled = on;
+      btnText.textContent  = on ? 'Loading...' : 'Generate';
+      loadingContainer.classList.toggle('show', on);
+    }
+    function showError(msg) { errorText.textContent = msg; errorBox.classList.add('show'); }
+    function hideError()    { errorBox.classList.remove('show'); }
+
+    function renderTranscript(data) {
+      videoTitleLabel.textContent = data.title || '';
+      langPill.textContent = (data.language || 'EN').toUpperCase();
+      if (data.isGenerated) {
+        typePill.textContent = 'Auto-generated';
+        typePill.className   = 'chip chip-amber';
+      } else {
+        typePill.textContent = 'Manual Captions';
+        typePill.className   = 'chip chip-green';
+      }
+      searchInput.value = '';
+      currentViewMode   = 'plain';
+      switchViewMode('plain');
+      sectionDivider.classList.add('show');
+      transcriptArea.classList.add('show');
+      transcriptArea.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function hideTranscript() {
+      transcriptArea.classList.remove('show');
+      sectionDivider.classList.remove('show');
+    }
+
+    function switchViewMode(mode) {
+      currentViewMode = mode;
+      document.getElementById('btnModePlain').classList.toggle('active', mode === 'plain');
+      document.getElementById('btnModeTimestamped').classList.toggle('active', mode === 'timestamped');
+      displayContent();
+    }
+
+    function displayContent() {
+      if (!currentTranscriptData) return;
+      const raw   = currentViewMode === 'plain' ? currentTranscriptData.plain : currentTranscriptData.timestamped;
+      const query = searchInput.value.trim().toLowerCase();
+      if (!query) {
+        transcriptOutput.textContent = raw;
+      } else {
+        const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const re      = new RegExp(`(${escaped})`, 'gi');
+        transcriptOutput.innerHTML = raw
+          .replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(re, '<mark style="background:rgba(245,158,11,.35);color:#fff;border-radius:2px;padding:0 2px;">$1</mark>');
+      }
+      const words = (currentTranscriptData.plain || '').trim().split(/\s+/).filter(Boolean).length;
+      wordCountLabel.innerHTML = `<strong>${words.toLocaleString()}</strong> words`;
+    }
+
+    function handleSearch() { displayContent(); }
+
+    async function copyTranscript() {
+      if (!currentTranscriptData) return;
+      const text = currentViewMode === 'plain' ? currentTranscriptData.plain : currentTranscriptData.timestamped;
+      try { await navigator.clipboard.writeText(text); }
+      catch {
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.cssText = 'position:fixed;opacity:0';
+        document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+      }
+      copyBtn.classList.add('copied');
+      copyBtnLabel.textContent = 'Copied!';
+      setTimeout(() => { copyBtn.classList.remove('copied'); copyBtnLabel.textContent = 'Copy'; }, 2200);
+    }
+
+    function downloadTxtFile() {
+      if (!currentTranscriptData) return;
+      const text = currentViewMode === 'plain' ? currentTranscriptData.plain : currentTranscriptData.timestamped;
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url; a.download = `transcript_${currentTranscriptData.videoId || 'youtube'}.txt`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function resetForm() {
+      urlInput.value = ''; currentTranscriptData = null;
+      urlInput.classList.remove('err');
+      hideError(); hideTranscript();
+      transcriptOutput.textContent = '';
+      urlInput.focus();
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       DOWNLOAD VIDEO SECTION
+    ═══════════════════════════════════════════════════════════════ */
+    let dlVideoInfo      = null;
+    let dlSelectedFormat = null;
+    let dlCurrentVideoId = null;  // YouTube video ID for embed preview
+
+    const dlUrlInput     = document.getElementById('dlUrlInput');
+    const dlFetchBtn     = document.getElementById('dlFetchBtn');
+    const dlFetchBtnText = document.getElementById('dlFetchBtnText');
+    const dlErrorBox     = document.getElementById('dlErrorBox');
+    const dlErrorText    = document.getElementById('dlErrorText');
+    const dlFetchLoading = document.getElementById('dlFetchLoading');
+    const dlVideoPreview = document.getElementById('dlVideoPreview');
+    const dlThumb        = document.getElementById('dlThumb');
+    const dlTitle        = document.getElementById('dlTitle');
+    const dlChannel      = document.getElementById('dlChannel');
+    const dlDuration     = document.getElementById('dlDuration');
+    const dlViewsWrap    = document.getElementById('dlViewsWrap');
+    const dlViews        = document.getElementById('dlViews');
+    const dlQualityGrid  = document.getElementById('dlQualityGrid');
+    const dlStartBtn     = document.getElementById('dlStartBtn');
+    const dlStartBtnText = document.getElementById('dlStartBtnText');
+    const dlLoadingState = document.getElementById('dlLoadingState');
+    const dlSuccessState = document.getElementById('dlSuccessState');
+    const dlSuccessMsg   = document.getElementById('dlSuccessMsg');
+
+    dlFetchBtn.addEventListener('click', fetchVideoInfo);
+    dlUrlInput.addEventListener('keydown', e => { if (e.key === 'Enter') fetchVideoInfo(); });
+    dlUrlInput.addEventListener('input', () => { dlUrlInput.classList.remove('err'); hideDlError(); });
+    dlStartBtn.addEventListener('click', startVideoDownload);
+
+    async function fetchVideoInfo() {
+      const url = dlUrlInput.value.trim();
+      if (!url) { showDlError('Please paste a YouTube URL first.'); dlUrlInput.classList.add('err'); dlUrlInput.focus(); return; }
+
+      setDlFetching(true); hideDlError(); hideDlPreview(); hideDlSuccess();
+
+      try {
+        const res  = await fetch(`/api/video-info?url=${encodeURIComponent(url)}`);
+        const data = await res.json();
+        if (!res.ok || data.error) throw new Error(data.error || 'Failed to fetch video info.');
+        dlVideoInfo = data;
+        renderDlPreview(data);
+      } catch (err) {
+        showDlError(err.message || 'Could not load video info. Please try again.');
+        dlUrlInput.classList.add('err');
+      } finally {
+        setDlFetching(false);
+      }
+    }
+
+    function setDlFetching(on) {
+      dlFetchBtn.disabled        = on;
+      dlFetchBtnText.textContent = on ? 'Loading...' : 'Download';
+      dlFetchLoading.classList.toggle('show', on);
+    }
+
+    function renderDlPreview(data) {
+      dlThumb.src             = data.thumbnail || '';
+      dlTitle.textContent     = data.title   || '';
+      dlChannel.textContent   = data.channel || '';
+      dlDuration.textContent  = data.duration || '';
+      dlCurrentVideoId        = data.video_id || null;
+      if (data.views) {
+        dlViews.textContent      = data.views + ' views';
+        dlViewsWrap.style.display = 'flex';
+      } else {
+        dlViewsWrap.style.display = 'none';
+      }
+
+      dlQualityGrid.innerHTML = '';
+      dlSelectedFormat = null;
+      (data.formats || []).forEach((fmt, i) => {
+        const btn = document.createElement('button');
+        btn.className        = 'q-btn' + (i === 0 ? ' sel' : '');
+        btn.dataset.format   = fmt.format;
+        if (i === 0) dlSelectedFormat = fmt.format;
+        let inner = fmt.label;
+        if (fmt.badge) inner += ` <span class="q-tag">${fmt.badge}</span>`;
+        btn.innerHTML = inner;
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.q-btn').forEach(b => b.classList.remove('sel'));
+          btn.classList.add('sel');
+          dlSelectedFormat = fmt.format;
+          hideDlSuccess();
+        });
+        dlQualityGrid.appendChild(btn);
+      });
+
+      dlVideoPreview.classList.add('show');
+      // Reset preview player state
+      closeVideoPreview();
+      dlVideoPreview.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    /* ─ Preview embed toggle ─────────────────────────────────────── */
+    const dlPreviewBtn     = document.getElementById('dlPreviewBtn');
+    const dlPreviewBtnText = document.getElementById('dlPreviewBtnText');
+    const dlEmbedPanel     = document.getElementById('dlEmbedPanel');
+    const dlEmbedFrame     = document.getElementById('dlEmbedFrame');
+    let previewOpen = false;
+
+    function toggleVideoPreview() {
+      if (!dlCurrentVideoId) return;
+      if (previewOpen) {
+        closeVideoPreview();
+      } else {
+        openVideoPreview();
+      }
+    }
+
+    function openVideoPreview() {
+      if (!dlCurrentVideoId) return;
+      // Set src only now (lazy load) - autoplay so user sees it immediately
+      dlEmbedFrame.src = `https://www.youtube.com/embed/${dlCurrentVideoId}?autoplay=1&rel=0`;
+      dlEmbedPanel.classList.add('show');
+      dlPreviewBtn.classList.add('active');
+      dlPreviewBtn.setAttribute('aria-expanded', 'true');
+      // Swap icon to ◼ stop / close icon
+      dlPreviewBtn.querySelector('svg').innerHTML = '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>';
+      dlPreviewBtnText.textContent = 'Close Preview';
+      previewOpen = true;
+    }
+
+    function closeVideoPreview() {
+      dlEmbedPanel.classList.remove('show');
+      dlEmbedFrame.src = '';  // stop playback immediately
+      dlPreviewBtn.classList.remove('active');
+      dlPreviewBtn.setAttribute('aria-expanded', 'false');
+      dlPreviewBtn.querySelector('svg').innerHTML = '<polygon points="5 3 19 12 5 21 5 3"/>';
+      dlPreviewBtnText.textContent = 'Preview Video';
+      previewOpen = false;
+    }
+
+    async function startVideoDownload() {
+      const url = dlUrlInput.value.trim();
+      if (!url || !dlSelectedFormat) return;
+
+      setDlDownloading(true); hideDlSuccess(); hideDlError();
+
+      try {
+        const dlUrl     = `/api/download?url=${encodeURIComponent(url)}&format=${encodeURIComponent(dlSelectedFormat)}`;
+        const controller = new AbortController();
+        const tid        = setTimeout(() => controller.abort(), 600000);
+
+        const res = await fetch(dlUrl, { signal: controller.signal });
+        clearTimeout(tid);
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: 'Download failed.' }));
+          throw new Error(err.error || 'Download failed.');
+        }
+
+        const cd = res.headers.get('Content-Disposition') || '';
+        let filename = dlVideoInfo?.title ? `${dlVideoInfo.title}.mp4` : 'video.mp4';
+        const cdm = cd.match(/filename\*?=(?:UTF-8'')?["']?([^"';\n]+)/i);
+        if (cdm) filename = decodeURIComponent(cdm[1].trim().replace(/["']/g, ''));
+
+        const blob    = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a       = document.createElement('a');
+        a.href = blobUrl; a.download = filename; a.style.display = 'none';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+
+        dlSuccessMsg.textContent = `"${filename}" saved to your Downloads folder.`;
+        dlSuccessState.classList.add('show');
+      } catch (err) {
+        if (err.name === 'AbortError') showDlError('Download timed out. Try a shorter video or lower quality.');
+        else showDlError(err.message || 'Download failed. Please try again.');
+      } finally {
+        setDlDownloading(false);
+      }
+    }
+
+    function setDlDownloading(on) {
+      dlStartBtn.disabled       = on;
+      dlStartBtnText.textContent = on ? 'Downloading...' : 'Download Video';
+      dlLoadingState.classList.toggle('show', on);
+    }
+
+    function showDlError(msg) { dlErrorText.textContent = msg; dlErrorBox.classList.add('show'); }
+    function hideDlError()    { dlErrorBox.classList.remove('show'); }
+    function hideDlPreview()  {
+      dlVideoPreview.classList.remove('show');
+      dlVideoInfo = null;
+      dlCurrentVideoId = null;
+      closeVideoPreview();
+    }
+    function hideDlSuccess()  { dlSuccessState.classList.remove('show'); }
+
+    /* ═══════════════════════════════════════════════════════════════
+       THUMBNAIL SECTION
+    ═══════════════════════════════════════════════════════════════ */
+    (function () {
+      const thumbUrlInput    = document.getElementById('thumbUrlInput');
+      const thumbBtn         = document.getElementById('thumbBtn');
+      const thumbBtnText     = document.getElementById('thumbBtnText');
+      const thumbErrorBox    = document.getElementById('thumbErrorBox');
+      const thumbErrorText   = document.getElementById('thumbErrorText');
+      const thumbLoading     = document.getElementById('thumbLoading');
+      const thumbResult      = document.getElementById('thumbResult');
+      const thumbImg         = document.getElementById('thumbImg');
+      const thumbQualityLabel = document.getElementById('thumbQualityLabel');
+      const thumbDimsLabel   = document.getElementById('thumbDimsLabel');
+      const thumbDlBtn       = document.getElementById('thumbDlBtn');
+
+      // Priority order: best quality first
+      const SIZES = [
+        { key: 'maxresdefault', label: 'Max Resolution', dims: '1280 × 720' },
+        { key: 'hqdefault',     label: 'High Quality',   dims: '480 × 360'  },
+        { key: 'mqdefault',     label: 'Medium Quality', dims: '320 × 180'  },
+      ];
+
+      function extractVideoId(url) {
+        try {
+          const u = new URL(url);
+          if (u.hostname.includes('youtu.be')) return u.pathname.slice(1).split('?')[0];
+          if (u.pathname.includes('/shorts/')) return u.pathname.split('/shorts/')[1].split('/')[0];
+          if (u.pathname.includes('/embed/'))  return u.pathname.split('/embed/')[1].split('/')[0];
+          return u.searchParams.get('v');
+        } catch { return null; }
+      }
+
+      function tryImage(src) {
+        return new Promise(resolve => {
+          const img = new Image();
+          img.onload  = () => resolve(img.naturalWidth > 120 ? src : null);
+          img.onerror = () => resolve(null);
+          img.src = src;
+        });
+      }
+
+      thumbBtn.addEventListener('click', getThumbnail);
+      thumbUrlInput.addEventListener('keydown', e => { if (e.key === 'Enter') getThumbnail(); });
+      thumbUrlInput.addEventListener('input', () => { thumbUrlInput.classList.remove('err'); hideThumbError(); });
+
+      async function getThumbnail() {
+        const url = thumbUrlInput.value.trim();
+        if (!url) { showThumbError('Please paste a YouTube URL first.'); thumbUrlInput.classList.add('err'); thumbUrlInput.focus(); return; }
+
+        const vid = extractVideoId(url);
+        if (!vid) { showThumbError('Invalid YouTube URL. Please check and try again.'); thumbUrlInput.classList.add('err'); return; }
+
+        setThumbLoading(true);
+        hideThumbError();
+        thumbResult.classList.remove('show');
+
+        // Try each size in order, use the first that loads
+        let found = null;
+        for (const s of SIZES) {
+          const src = await tryImage(`https://img.youtube.com/vi/${vid}/${s.key}.jpg`);
+          if (src) { found = { ...s, src, vid }; break; }
+        }
+
+        setThumbLoading(false);
+
+        if (!found) {
+          showThumbError('Could not load thumbnail. Make sure the URL is correct.');
+          return;
+        }
+
+        thumbImg.src             = found.src;
+        thumbQualityLabel.textContent = found.label;
+        thumbDimsLabel.textContent    = found.dims;
+        thumbDlBtn.href              = found.src;
+        thumbDlBtn.download          = `thumbnail_${found.vid}.jpg`;
+        thumbResult.classList.add('show');
+        thumbResult.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+
+      function setThumbLoading(on) {
+        thumbBtn.disabled        = on;
+        thumbBtnText.textContent = on ? 'Loading...' : 'Get Thumbnail';
+        thumbLoading.classList.toggle('show', on);
+      }
+      function showThumbError(msg) { thumbErrorText.textContent = msg; thumbErrorBox.classList.add('show'); }
+      function hideThumbError()    { thumbErrorBox.classList.remove('show'); }
+    })();
+  </script>
+</body>
+</html>
