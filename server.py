@@ -218,15 +218,17 @@ def get_transcript_direct(video_id: str) -> dict:
         is_generated = transcript.is_generated
         snippets = transcript.fetch()
 
-        plain = " ".join(s.get("text", "") for s in snippets)
+        plain = " ".join(getattr(s, "text", "") if hasattr(s, "text") else (s.get("text", "") if isinstance(s, dict) else str(s)) for s in snippets)
 
         ts_lines = []
         for s in snippets:
-            total = int(s.get("start", 0))
+            text = getattr(s, "text", "") if hasattr(s, "text") else (s.get("text", "") if isinstance(s, dict) else str(s))
+            start_val = getattr(s, "start", 0) if hasattr(s, "start") else (s.get("start", 0) if isinstance(s, dict) else 0)
+            total = int(start_val)
             m, sec = divmod(total, 60)
             h, m   = divmod(m, 60)
             ts = f"[{h:02d}:{m:02d}:{sec:02d}]" if h else f"[{m:02d}:{sec:02d}]"
-            ts_lines.append(f"{ts} {s.get('text', '')}")
+            ts_lines.append(f"{ts} {text}")
 
         return {
             "videoId":     video_id,
@@ -532,8 +534,8 @@ def api_video_info():
         msg = str(e)
         if "private" in msg.lower() or "unavailable" in msg.lower():
             return jsonify({"error": "This video is private or unavailable."}), 404
-        if "Sign in" in msg or "bot" in msg.lower():
-            return jsonify({"error": "YouTube blocked this request. Your cookies.txt may be expired."}), 403
+        if "Sign in" in msg or "bot" in msg.lower() or "format" in msg.lower() or "requested format" in msg.lower():
+            return jsonify({"error": "YouTube blocks video file downloads on cloud hosting servers (Render/AWS). Video downloads work on Localhost."}), 403
         return jsonify({"error": f"Could not fetch video info: {msg}"}), 500
 
 
@@ -560,8 +562,8 @@ def api_download_video():
         msg = str(e)
         if "private" in msg.lower() or "unavailable" in msg.lower():
             return jsonify({"error": "This video is private or unavailable."}), 404
-        if "Sign in" in msg or "bot" in msg.lower():
-            return jsonify({"error": "YouTube blocked the request. Try refreshing your cookies.txt."}), 403
+        if "Sign in" in msg or "bot" in msg.lower() or "format" in msg.lower():
+            return jsonify({"error": "YouTube blocks video file downloads on cloud hosting servers (Render/AWS). Video downloads work on Localhost."}), 403
         return jsonify({"error": f"Download failed: {msg}"}), 500
 
 
