@@ -102,6 +102,11 @@ def apply_cloud_bypasses(opts: dict, use_cookies: bool = True) -> dict:
     opts["socket_timeout"] = 60
     opts["retries"] = 5
     opts["fragment_retries"] = 5
+    # Optional Proxy support (bypasses cloud IP block if YOUTUBE_PROXY env var is set)
+    proxy = os.environ.get("YOUTUBE_PROXY") or os.environ.get("HTTP_PROXY") or os.environ.get("HTTPS_PROXY")
+    if proxy:
+        opts["proxy"] = proxy
+
     # tv_embedded client bypasses bot-detection on datacenter IPs
     opts["extractor_args"] = {
         "youtube": {
