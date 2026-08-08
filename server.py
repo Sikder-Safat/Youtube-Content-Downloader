@@ -35,11 +35,11 @@ COOKIES_FILE = os.path.join(os.path.dirname(__file__), "cookies.txt")
 # Support Environment Variable for Cloud Deployment (Render, Railway, Heroku, VPS)
 def ensure_cookies_env():
     env_cookies = os.environ.get("YOUTUBE_COOKIES") or os.environ.get("COOKIES_TXT")
-    if env_cookies and not os.path.isfile(COOKIES_FILE):
+    if env_cookies:
         try:
             with open(COOKIES_FILE, "w", encoding="utf-8") as f:
                 f.write(env_cookies)
-            print("[OK] Created cookies.txt from environment variable")
+            print("[OK] Updated cookies.txt from environment variable")
         except Exception as e:
             print(f"[!] Failed to write cookies from env var: {e}")
 
