@@ -154,20 +154,41 @@ def pick_subtitle_track(info: dict):
 
 def get_transcript_direct(video_id: str) -> dict:
     """
-    Primary transcript method using youtube-transcript-api.
-    Works on cloud servers (Render) WITHOUT a proxy - hits a different
-    YouTube endpoint that is not blocked on datacenter IPs.
+    Primary transcript method using youtube-transcript-api v1.2.4.
+    Loads cookies into a requests.Session so Render's datacenter IP
+    is authenticated and not blocked by YouTube.
     """
-    from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, TranscriptsDisabled
+    from youtube_transcript_api import YouTubeTranscriptApi
+    from youtube_transcript_api._errors import NoTranscriptFound, TranscriptsDisabled
+    import requests
+    import http.cookiejar
 
-    # Try English first, then any available language
+    # Build a requests Session with cookies from cookies.txt
+    session = requests.Session()
+    cookie_path = COOKIES_FILE if (os.path.isfile(COOKIES_FILE) and os.path.getsize(COOKIES_FILE) > 50) else None
+    if cookie_path:
+        try:
+            jar = http.cookiejar.MozillaCookieJar(cookie_path)
+            jar.load(ignore_discard=True, ignore_expires=True)
+            session.cookies = jar  # type: ignore
+        except Exception:
+            pass  # proceed without cookies
+
+    session.headers.update({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9",
+    })
+
+    api = YouTubeTranscriptApi(http_client=session)
+
     try:
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        transcript_list = api.list(video_id)
 
-        # Try manual English first
         transcript = None
         lang_code = "en"
         is_generated = False
+
+        # Try manual English first
         try:
             transcript = transcript_list.find_manually_created_transcript(["en", "en-US", "en-GB"])
             is_generated = False
@@ -209,18 +230,23 @@ def get_transcript_direct(video_id: str) -> dict:
 
         return {
             "videoId":     video_id,
-            "title":       "",           # filled in by caller if needed
+            "title":       f"YouTube Video ({video_id})",
             "language":    lang_code,
             "isGenerated": is_generated,
             "plain":       plain,
             "timestamped": "\n".join(ts_lines),
-            "cookiesUsed": False,
+            "cookiesUsed": bool(cookie_path),
         }
 
     except TranscriptsDisabled:
         raise Exception("Captions are disabled for this video.")
     except NoTranscriptFound:
         raise Exception("No captions found for this video.")
+    except Exception as e:
+        raise Exception(str(e))
+
+
+
 
 
 def get_transcript_yt_dlp(video_url: str) -> dict:
