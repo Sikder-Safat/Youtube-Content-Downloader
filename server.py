@@ -81,6 +81,27 @@ def fetch_subtitle_url(sub_url: str) -> list[dict]:
     return parse_json3(data)
 
 
+def apply_cloud_bypasses(opts: dict, use_cookies: bool = True) -> dict:
+    opts["nocheckcertificate"] = True
+    opts["geo_bypass"] = True
+    opts["headers"] = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+    opts["extractor_args"] = {
+        "youtube": {
+            "player_client": ["android", "mweb", "web"],
+        }
+    }
+    if use_cookies and os.path.isfile(COOKIES_FILE):
+        try:
+            if os.path.getsize(COOKIES_FILE) > 10:
+                opts["cookiefile"] = COOKIES_FILE
+        except Exception:
+            pass
+    return opts
+
+
 def build_ydl_opts(use_cookies: bool) -> dict:
     opts = {
         "skip_download": True,
@@ -91,9 +112,8 @@ def build_ydl_opts(use_cookies: bool) -> dict:
         "subtitleslangs": ["en", "en-US", "en-GB", "en-CA", "en-AU", "en.*"],
         "subtitlesformat": "json3/vtt/srv1",
     }
-    if use_cookies and os.path.isfile(COOKIES_FILE):
-        opts["cookiefile"] = COOKIES_FILE
-    return opts
+    return apply_cloud_bypasses(opts, use_cookies=use_cookies)
+
 
 
 def pick_subtitle_track(info: dict):
@@ -192,13 +212,11 @@ def get_video_info_for_download(url: str) -> dict:
     """Extract video metadata and list of quality options (no-ffmpeg compatible)."""
     import yt_dlp
 
-    opts = {
+    opts = apply_cloud_bypasses({
         "skip_download": True,
         "quiet": True,
         "no_warnings": True,
-    }
-    if os.path.isfile(COOKIES_FILE):
-        opts["cookiefile"] = COOKIES_FILE
+    })
 
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=False)
@@ -287,19 +305,17 @@ def download_video_to_tempfile(url: str, fmt: str) -> tuple[str, str, str]:
     tmpdir = tempfile.mkdtemp(prefix="ytdl_")
     is_audio_only = "bestaudio" in fmt and "bestvideo" not in fmt
 
-    opts = {
+    opts = apply_cloud_bypasses({
         "quiet": True,
         "no_warnings": True,
         "outtmpl": os.path.join(tmpdir, "download.%(ext)s"),
         "format": fmt,
         "no_color": True,
-    }
+    })
     if FFMPEG_PATH:
         opts["ffmpeg_location"] = FFMPEG_PATH
     if not is_audio_only:
         opts["merge_output_format"] = "mp4"
-    if os.path.isfile(COOKIES_FILE):
-        opts["cookiefile"] = COOKIES_FILE
 
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
