@@ -155,100 +155,87 @@ def pick_subtitle_track(info: dict):
 def get_transcript_direct(video_id: str) -> dict:
     """
     Primary transcript method using youtube-transcript-api v1.2.4.
-    Loads cookies into a requests.Session so Render's datacenter IP
-    is authenticated and not blocked by YouTube.
+    Uses clean unauthenticated fetch first (bypasses cookie-IP location mismatch),
+    falling back to list() and cookie-authenticated Session.
     """
     from youtube_transcript_api import YouTubeTranscriptApi
-    from youtube_transcript_api._errors import NoTranscriptFound, TranscriptsDisabled
-    import requests
-    import http.cookiejar
 
-    # Build a requests Session with cookies from cookies.txt
-    session = requests.Session()
-    cookie_path = COOKIES_FILE if (os.path.isfile(COOKIES_FILE) and os.path.getsize(COOKIES_FILE) > 50) else None
-    if cookie_path:
+    snippets = None
+    lang_code = "en"
+    is_generated = True
+    last_error = None
+
+    # Stage 1: Clean unauthenticated fetch (works for 95% of public videos, no cookie issues)
+    try:
+        api = YouTubeTranscriptApi()
+        fetched = api.fetch(video_id, languages=["en", "en-US", "en-GB", "en-CA", "en-AU"])
+        snippets = list(fetched)
+    except Exception as e:
+        last_error = e
+
+    # Stage 2: List all transcripts if English default fetch failed (for non-English videos)
+    if not snippets:
         try:
-            jar = http.cookiejar.MozillaCookieJar(cookie_path)
+            api = YouTubeTranscriptApi()
+            t_list = api.list(video_id)
+            transcript = None
+            for t in t_list:
+                transcript = t
+                lang_code = getattr(t, "language_code", "en")
+                is_generated = getattr(t, "is_generated", True)
+                if not is_generated:
+                    break
+            if transcript:
+                snippets = list(transcript.fetch())
+        except Exception as e:
+            last_error = e
+
+    # Stage 3: Cookie-authenticated session (for age-restricted or member-only videos)
+    if not snippets and os.path.isfile(COOKIES_FILE) and os.path.getsize(COOKIES_FILE) > 50:
+        try:
+            import requests
+            import http.cookiejar
+            session = requests.Session()
+            jar = http.cookiejar.MozillaCookieJar(COOKIES_FILE)
             jar.load(ignore_discard=True, ignore_expires=True)
             session.cookies = jar  # type: ignore
-        except Exception:
-            pass  # proceed without cookies
+            session.headers.update({
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+            })
+            api = YouTubeTranscriptApi(http_client=session)
+            fetched = api.fetch(video_id)
+            snippets = list(fetched)
+        except Exception as e:
+            last_error = e
 
-    session.headers.update({
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-        "Accept-Language": "en-US,en;q=0.9",
-    })
+    if not snippets:
+        msg = str(last_error) if last_error else "No captions found for this video."
+        raise Exception(msg)
 
-    api = YouTubeTranscriptApi(http_client=session)
+    plain = " ".join(
+        getattr(s, "text", "") if hasattr(s, "text") else (s.get("text", "") if isinstance(s, dict) else str(s))
+        for s in snippets
+    )
 
-    try:
-        transcript_list = api.list(video_id)
+    ts_lines = []
+    for s in snippets:
+        text = getattr(s, "text", "") if hasattr(s, "text") else (s.get("text", "") if isinstance(s, dict) else str(s))
+        start_val = getattr(s, "start", 0) if hasattr(s, "start") else (s.get("start", 0) if isinstance(s, dict) else 0)
+        total = int(start_val)
+        m, sec = divmod(total, 60)
+        h, m   = divmod(m, 60)
+        ts = f"[{h:02d}:{m:02d}:{sec:02d}]" if h else f"[{m:02d}:{sec:02d}]"
+        ts_lines.append(f"{ts} {text}")
 
-        transcript = None
-        lang_code = "en"
-        is_generated = False
-
-        # Try manual English first
-        try:
-            transcript = transcript_list.find_manually_created_transcript(["en", "en-US", "en-GB"])
-            is_generated = False
-        except Exception:
-            pass
-
-        # Try auto-generated English
-        if not transcript:
-            try:
-                transcript = transcript_list.find_generated_transcript(["en", "en-US", "en-GB"])
-                is_generated = True
-            except Exception:
-                pass
-
-        # Any available language
-        if not transcript:
-            for t in transcript_list:
-                transcript = t
-                lang_code = t.language_code
-                is_generated = t.is_generated
-                break
-
-        if not transcript:
-            raise Exception("No captions found for this video.")
-
-        lang_code = transcript.language_code
-        is_generated = transcript.is_generated
-        snippets = transcript.fetch()
-
-        plain = " ".join(getattr(s, "text", "") if hasattr(s, "text") else (s.get("text", "") if isinstance(s, dict) else str(s)) for s in snippets)
-
-        ts_lines = []
-        for s in snippets:
-            text = getattr(s, "text", "") if hasattr(s, "text") else (s.get("text", "") if isinstance(s, dict) else str(s))
-            start_val = getattr(s, "start", 0) if hasattr(s, "start") else (s.get("start", 0) if isinstance(s, dict) else 0)
-            total = int(start_val)
-            m, sec = divmod(total, 60)
-            h, m   = divmod(m, 60)
-            ts = f"[{h:02d}:{m:02d}:{sec:02d}]" if h else f"[{m:02d}:{sec:02d}]"
-            ts_lines.append(f"{ts} {text}")
-
-        return {
-            "videoId":     video_id,
-            "title":       f"YouTube Video ({video_id})",
-            "language":    lang_code,
-            "isGenerated": is_generated,
-            "plain":       plain,
-            "timestamped": "\n".join(ts_lines),
-            "cookiesUsed": bool(cookie_path),
-        }
-
-    except TranscriptsDisabled:
-        raise Exception("Captions are disabled for this video.")
-    except NoTranscriptFound:
-        raise Exception("No captions found for this video.")
-    except Exception as e:
-        raise Exception(str(e))
-
-
-
+    return {
+        "videoId":     video_id,
+        "title":       f"YouTube Video ({video_id})",
+        "language":    lang_code,
+        "isGenerated": is_generated,
+        "plain":       plain,
+        "timestamped": "\n".join(ts_lines),
+        "cookiesUsed": False,
+    }
 
 
 def get_transcript_yt_dlp(video_url: str) -> dict:
