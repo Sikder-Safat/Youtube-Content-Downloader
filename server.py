@@ -99,18 +99,13 @@ def apply_cloud_bypasses(opts: dict, use_cookies: bool = True) -> dict:
     opts["geo_bypass"] = True
     opts["no_warnings"] = True
     opts["ignoreerrors"] = False
-    opts["socket_timeout"] = 30
-    opts["retries"] = 3
-    opts["headers"] = {
-        "User-Agent": "com.google.ios.youtube/19.29.1 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X;)",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept": "*/*",
-    }
-    # Use ios + web clients - most reliable for bypassing datacenter IP blocks
+    opts["socket_timeout"] = 60
+    opts["retries"] = 5
+    opts["fragment_retries"] = 5
+    # tv_embedded client bypasses bot-detection on datacenter IPs
     opts["extractor_args"] = {
         "youtube": {
-            "player_client": ["ios", "web", "android"],
-            "player_skip": ["webpage", "js"],
+            "player_client": ["tv_embedded", "ios", "android"],
         }
     }
     if use_cookies and os.path.isfile(COOKIES_FILE):
@@ -120,7 +115,6 @@ def apply_cloud_bypasses(opts: dict, use_cookies: bool = True) -> dict:
         except Exception:
             pass
     return opts
-
 
 
 def build_ydl_opts(use_cookies: bool) -> dict:
