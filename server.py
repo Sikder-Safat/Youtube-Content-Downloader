@@ -391,23 +391,6 @@ def status():
     return jsonify({"cookiesReady": has_cookies})
 
 
-@app.route("/api/update-cookies", methods=["POST"])
-def update_cookies():
-    """Update cookies.txt directly from web interface."""
-    data = request.get_json(silent=True) or {}
-    cookie_content = data.get("cookies", "").strip()
-
-    if not cookie_content:
-        return jsonify({"error": "No cookie content provided."}), 400
-
-    try:
-        sanitized = sanitize_cookies_content(cookie_content)
-        with open(COOKIES_FILE, "w", encoding="utf-8") as f:
-            f.write(sanitized)
-        print("[OK] Cookies updated directly via Web UI")
-        return jsonify({"success": True, "message": "Cookies saved successfully! You can now generate transcripts and download videos."})
-    except Exception as e:
-        return jsonify({"error": f"Failed to save cookies: {str(e)}"}), 500
 
 
 

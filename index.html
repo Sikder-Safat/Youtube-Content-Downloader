@@ -810,42 +810,19 @@
     </header>
 
     <!-- Setup banner (shown only if cookies missing) -->
-    <div id="setupBanner" class="setup-banner" aria-label="Setup required">
-      <div class="setup-banner-hd" onclick="toggleSetupInstructions()" role="button" aria-expanded="false">
+    <div id="setupBanner" class="setup-banner" aria-label="Service notice">
+      <div class="setup-banner-hd" role="alert">
         <div class="setup-banner-title">
           <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-          <span>One-time setup required - cookies.txt needed for YouTube</span>
+          <span>Service temporarily unavailable - YouTube authentication is being updated</span>
         </div>
-        <span class="setup-toggle" id="setupToggleLabel">Instructions ▾</span>
       </div>
-      <div class="setup-body" id="setupBody">
-        <p>YouTube blocks automated access. Export your browser cookies once using a free extension, place the file next to <code style="color:#fcd34d;background:rgba(255,255,255,.05);padding:1px 5px;border-radius:4px;">server.py</code>, then restart the server.</p>
-        <ol class="setup-steps">
-          <li>Install the <strong>Get cookies.txt LOCALLY</strong> extension:
-            <div class="ext-links">
-              <a class="ext-link" href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" target="_blank" rel="noopener">Chrome / Edge</a>
-              <a class="ext-link" href="https://addons.mozilla.org/en-US/firefox/addon/cookies-txt/" target="_blank" rel="noopener">Firefox</a>
-            </div>
-          </li>
-          <li>Log into <strong>youtube.com</strong>, then click the extension and hit <strong>Export</strong>.</li>
-          <li>Paste the copied <strong>cookies.txt</strong> content below and click <strong>Save Cookie</strong>!</li>
-        </ol>
-
-        <!-- 1-Click Cookie Paste Form -->
-        <div style="margin-top:16px; padding-top:14px; border-top:1px dashed rgba(245,158,11,0.25);">
-          <label style="display:block; font-size:12.5px; font-weight:700; color:#fcd34d; margin-bottom:6px;">
-            ⚡ Quick Cookie Update (Paste your cookies.txt text here):
-          </label>
-          <textarea id="cookiePasteInput" placeholder="Paste your cookies.txt text content here..."
-            style="width:100%; height:85px; background:rgba(0,0,0,0.4); border:1px solid rgba(245,158,11,0.3); border-radius:8px; color:#fff; padding:10px; font-family:monospace; font-size:11.5px; outline:none; resize:vertical;"></textarea>
-          <div style="display:flex; align-items:center; gap:10px; margin-top:8px;">
-            <button id="saveCookieBtn" onclick="saveCookiesDirectly()" class="btn btn-green" style="height:38px; padding:0 18px; font-size:13px;">
-              <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-              Save Cookie
-            </button>
-            <span id="cookieSaveMsg" style="font-size:12.5px; font-weight:600;"></span>
-          </div>
-        </div>
+      <div class="setup-body open" id="setupBody" style="display:block !important;">
+        <p style="margin:0; color:rgba(255,255,255,0.8); font-size:14px;">
+          YouTube requires periodic authentication to allow access. Our team is currently updating the service configuration.
+          <br><br>
+          <strong style="color:#fcd34d;">Please try again in a few minutes.</strong> If the issue persists, the service is being maintained.
+        </p>
       </div>
     </div>
 
