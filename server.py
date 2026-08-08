@@ -10,19 +10,24 @@ import urllib.request
 
 app = Flask(__name__, static_folder=".", static_url_path="")
 
-# ── FFmpeg location (installed via winget) ────────────────────────
-_FFMPEG_CANDIDATES = [
-    # winget install path
-    r"C:\Users\User\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0-full_build\bin",
-    # Common manual install locations
-    r"C:\ffmpeg\bin",
-    r"C:\Program Files\FFmpeg\bin",
-]
-FFMPEG_PATH = None
-for _p in _FFMPEG_CANDIDATES:
-    if os.path.isfile(os.path.join(_p, "ffmpeg.exe")):
-        FFMPEG_PATH = _p
-        break
+# ── FFmpeg location detection (Windows & Linux Cloud Servers) ────
+import shutil
+FFMPEG_PATH = shutil.which("ffmpeg")
+if FFMPEG_PATH:
+    FFMPEG_PATH = os.path.dirname(FFMPEG_PATH)
+else:
+    _FFMPEG_CANDIDATES = [
+        r"C:\Users\User\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0-full_build\bin",
+        r"C:\ffmpeg\bin",
+        r"C:\Program Files\FFmpeg\bin",
+        "/usr/bin",
+        "/usr/local/bin",
+    ]
+    for _p in _FFMPEG_CANDIDATES:
+        if os.path.isfile(os.path.join(_p, "ffmpeg.exe")) or os.path.isfile(os.path.join(_p, "ffmpeg")):
+            FFMPEG_PATH = _p
+            break
+
 CORS(app)
 
 COOKIES_FILE = os.path.join(os.path.dirname(__file__), "cookies.txt")
