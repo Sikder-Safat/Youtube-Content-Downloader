@@ -32,13 +32,26 @@ CORS(app)
 
 COOKIES_FILE = os.path.join(os.path.dirname(__file__), "cookies.txt")
 
+NETSCAPE_HEADER = "# Netscape HTTP Cookie File"
+
+def sanitize_cookies_content(content: str) -> str:
+    """Ensure cookies content has the required Netscape header for yt-dlp."""
+    content = content.strip()
+    # If already has a valid Netscape header, keep as-is
+    if content.startswith("# Netscape") or content.startswith("# HTTP Cookie File"):
+        return content
+    # Otherwise prepend the required header
+    return NETSCAPE_HEADER + "\n" + content
+
+
 # Support Environment Variable for Cloud Deployment (Render, Railway, Heroku, VPS)
 def ensure_cookies_env():
     env_cookies = os.environ.get("YOUTUBE_COOKIES") or os.environ.get("COOKIES_TXT")
     if env_cookies:
         try:
+            sanitized = sanitize_cookies_content(env_cookies)
             with open(COOKIES_FILE, "w", encoding="utf-8") as f:
-                f.write(env_cookies)
+                f.write(sanitized)
             print("[OK] Updated cookies.txt from environment variable")
         except Exception as e:
             print(f"[!] Failed to write cookies from env var: {e}")
@@ -388,8 +401,9 @@ def update_cookies():
         return jsonify({"error": "No cookie content provided."}), 400
 
     try:
+        sanitized = sanitize_cookies_content(cookie_content)
         with open(COOKIES_FILE, "w", encoding="utf-8") as f:
-            f.write(cookie_content)
+            f.write(sanitized)
         print("[OK] Cookies updated directly via Web UI")
         return jsonify({"success": True, "message": "Cookies saved successfully! You can now generate transcripts and download videos."})
     except Exception as e:
