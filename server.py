@@ -97,13 +97,20 @@ def fetch_subtitle_url(sub_url: str) -> list[dict]:
 def apply_cloud_bypasses(opts: dict, use_cookies: bool = True) -> dict:
     opts["nocheckcertificate"] = True
     opts["geo_bypass"] = True
+    opts["no_warnings"] = True
+    opts["ignoreerrors"] = False
+    opts["socket_timeout"] = 30
+    opts["retries"] = 3
     opts["headers"] = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "User-Agent": "com.google.ios.youtube/19.29.1 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X;)",
         "Accept-Language": "en-US,en;q=0.9",
+        "Accept": "*/*",
     }
+    # Use ios + web clients - most reliable for bypassing datacenter IP blocks
     opts["extractor_args"] = {
         "youtube": {
-            "player_client": ["android", "mweb", "web"],
+            "player_client": ["ios", "web", "android"],
+            "player_skip": ["webpage", "js"],
         }
     }
     if use_cookies and os.path.isfile(COOKIES_FILE):
@@ -113,6 +120,7 @@ def apply_cloud_bypasses(opts: dict, use_cookies: bool = True) -> dict:
         except Exception:
             pass
     return opts
+
 
 
 def build_ydl_opts(use_cookies: bool) -> dict:
