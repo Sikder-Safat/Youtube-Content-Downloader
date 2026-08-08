@@ -152,6 +152,77 @@ def pick_subtitle_track(info: dict):
     return None, None, False
 
 
+def get_transcript_direct(video_id: str) -> dict:
+    """
+    Primary transcript method using youtube-transcript-api.
+    Works on cloud servers (Render) WITHOUT a proxy - hits a different
+    YouTube endpoint that is not blocked on datacenter IPs.
+    """
+    from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, TranscriptsDisabled
+
+    # Try English first, then any available language
+    try:
+        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+
+        # Try manual English first
+        transcript = None
+        lang_code = "en"
+        is_generated = False
+        try:
+            transcript = transcript_list.find_manually_created_transcript(["en", "en-US", "en-GB"])
+            is_generated = False
+        except Exception:
+            pass
+
+        # Try auto-generated English
+        if not transcript:
+            try:
+                transcript = transcript_list.find_generated_transcript(["en", "en-US", "en-GB"])
+                is_generated = True
+            except Exception:
+                pass
+
+        # Any available language
+        if not transcript:
+            for t in transcript_list:
+                transcript = t
+                lang_code = t.language_code
+                is_generated = t.is_generated
+                break
+
+        if not transcript:
+            raise Exception("No captions found for this video.")
+
+        lang_code = transcript.language_code
+        is_generated = transcript.is_generated
+        snippets = transcript.fetch()
+
+        plain = " ".join(s.get("text", "") for s in snippets)
+
+        ts_lines = []
+        for s in snippets:
+            total = int(s.get("start", 0))
+            m, sec = divmod(total, 60)
+            h, m   = divmod(m, 60)
+            ts = f"[{h:02d}:{m:02d}:{sec:02d}]" if h else f"[{m:02d}:{sec:02d}]"
+            ts_lines.append(f"{ts} {s.get('text', '')}")
+
+        return {
+            "videoId":     video_id,
+            "title":       "",           # filled in by caller if needed
+            "language":    lang_code,
+            "isGenerated": is_generated,
+            "plain":       plain,
+            "timestamped": "\n".join(ts_lines),
+            "cookiesUsed": False,
+        }
+
+    except TranscriptsDisabled:
+        raise Exception("Captions are disabled for this video.")
+    except NoTranscriptFound:
+        raise Exception("No captions found for this video.")
+
+
 def get_transcript_yt_dlp(video_url: str) -> dict:
     import yt_dlp
 
@@ -219,6 +290,7 @@ def get_transcript_yt_dlp(video_url: str) -> dict:
         "timestamped": "\n".join(ts_lines),
         "cookiesUsed": cookies_present,
     }
+
 
 
 # ── Download helpers ─────────────────────────────────────────────
@@ -390,19 +462,30 @@ def get_transcript():
     if not video_id:
         return jsonify({"error": "Invalid YouTube URL. Please check the URL and try again."}), 400
 
+    # METHOD 1: youtube-transcript-api (works on Render/cloud without proxy)
+    try:
+        result = get_transcript_direct(video_id)
+        # Try to get video title via yt-dlp if available, but don't fail if blocked
+        if not result.get("title"):
+            result["title"] = f"YouTube Video ({video_id})"
+        return jsonify(result)
+    except Exception as direct_err:
+        direct_msg = str(direct_err)
+        # If captions are truly disabled, no point trying yt-dlp
+        if "disabled" in direct_msg.lower() or "no captions" in direct_msg.lower():
+            return jsonify({"error": direct_msg}), 404
+
+    # METHOD 2: yt-dlp fallback (works on local/home IPs)
     try:
         result = get_transcript_yt_dlp(url)
         return jsonify(result)
     except Exception as e:
         msg = str(e)
         if "Sign in" in msg or "bot" in msg.lower() or "cookies" in msg.lower():
-            return jsonify({
-                "error": "NEEDS_COOKIES",
-                "detail": "YouTube requires authentication. Please follow the setup instructions on the page."
-            }), 403
+            return jsonify({"error": "YouTube is blocking this server. Transcript unavailable."}), 403
         if "private" in msg.lower() or "unavailable" in msg.lower():
             return jsonify({"error": "This video is private or unavailable."}), 404
-        if "subtitles" in msg.lower() or "captions" in msg.lower() or "No subtitles" in msg:
+        if "subtitles" in msg.lower() or "captions" in msg.lower():
             return jsonify({"error": msg}), 404
         return jsonify({"error": f"Failed to retrieve transcript: {msg}"}), 500
 
